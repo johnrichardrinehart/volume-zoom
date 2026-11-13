@@ -71,6 +71,21 @@ class MainActivity : Activity() {
         )
         showMax(maxDb)
 
+        val boostLabel = text("", 15f).also(root::addView)
+        fun showBoost(v: Int) {
+            boostLabel.text =
+                if (v == 0) getString(R.string.max_boost_off)
+                else getString(R.string.max_boost, v, v.toFloat() / Prefs.STEPS)
+        }
+        val boostDb = prefs.getInt(Prefs.MAX_BOOST_DB, Prefs.DEFAULT_MAX_BOOST_DB)
+        root.addView(
+            slider(Prefs.MAX_BOOST_RANGE, boostDb) {
+                showBoost(it)
+                prefs.edit().putInt(Prefs.MAX_BOOST_DB, it).apply()
+            }
+        )
+        showBoost(boostDb)
+
         val holdLabel = text("", 15f).also(root::addView)
         fun showHold(v: Int) {
             holdLabel.text = getString(R.string.hold_time, v)

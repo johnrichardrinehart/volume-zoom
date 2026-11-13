@@ -1,9 +1,11 @@
 # Volume Zoom
 
-Lets you turn media quieter than Android's lowest volume step, using only the hardware
-volume keys.
+Lets you turn media quieter than Android's lowest volume step, or louder than its highest,
+using only the hardware volume keys.
 
 ## Behaviour
+
+**Quieter (fine):**
 
 1. Turn media down to its lowest audible step (index 1) the usual way.
 2. **Hold volume down** for 400 ms to zoom in. You land on fine step 0, which is plain
@@ -13,24 +15,41 @@ volume keys.
      A fresh press on step 10 mutes and leaves fine mode.
    - volume up: one step louder, repeating while held, stopping at 0 dB. A fresh up
      press at 0 dB zooms out and raises the system volume as usual.
-   - any other change to the media volume (system slider, switching to headphones or
-     Bluetooth, screen-off key presses) leaves fine mode.
-4. A quick press at index 1 still mutes, on release.
+
+**Louder (boost):**
+
+1. Turn media up to its highest step.
+2. **Hold volume up** for 400 ms, with the press starting at the top step. You land on
+   boost step 0 (0 dB). A hold that starts lower and reaches the top through key repeat
+   does not boost.
+3. In boost mode (10 steps above 0 dB, by default 1.2 dB each, up to +12 dB, or off):
+   - volume up: one step louder, repeating while held. Step 10 is the limit.
+   - volume down: one step quieter, repeating while held, stopping at 0 dB. A fresh down
+     press at 0 dB zooms out and lowers the system volume as usual.
+
+A limiter at −1 dBFS keeps boosted peaks from clipping. Boost makes quiet passages
+louder, but it can't make already-loud, full-scale audio any louder. It also drives the
+speaker harder; the phone's own speaker protection still applies.
+
+**Both:** a quick press at either end behaves as usual. Any other change to the media
+volume (system slider, switching to headphones or Bluetooth, screen-off key presses)
+leaves the zone.
 
 This works with nothing playing too, because on Pixel/AOSP the idle volume keys adjust
 media. On phones where idle keys change the ringer, turn off "Volume keys control media
 when nothing is playing" in the app, and it will then only act while media plays.
 
-A small indicator at the right edge shows the current fine step. You can turn it off.
+A small indicator at the right edge shows the current step: blue for fine, orange for boost. You can turn it off.
 
 ## How it works
 
 - `ZoomService` is an accessibility service that filters key events
-  (`flagRequestFilterKeyEvents`). It only takes keys when the audio mode is normal and
-  media is playing, or while fine mode is active. It never handles calls or the ringer.
-- `Attenuator` puts a `DynamicsProcessing` effect on the global output mix (session 0)
-  and sets its input gain, which is a flat dB scaler. The effect exists only while fine
-  mode is on. Outside fine mode the audio path is left alone.
+  (`flagRequestFilterKeyEvents`). It takes keys only when the audio mode is normal and the
+  keys target media (playing, or idle on Pixel/AOSP), or while a zone is active. It never
+  handles calls or the ringer.
+- `Gain` puts a `DynamicsProcessing` effect on the global output mix (session 0), sets its
+  input gain (a flat dB scaler), and adds a limiter for boost. The effect exists only
+  while a zone is active. Otherwise the audio path is left alone.
 - `ZoomController` is the state machine. It has no Android dependencies and is unit
   tested.
 

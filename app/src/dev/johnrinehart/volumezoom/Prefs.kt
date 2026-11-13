@@ -6,14 +6,19 @@ import android.content.SharedPreferences
 object Prefs {
     const val FILE = "settings"
     const val MAX_DB = "max_attenuation_db"
+    const val MAX_BOOST_DB = "max_boost_db"
     const val HOLD_MS = "hold_ms"
     const val HUD = "show_hud"
     const val IDLE_KEYS_MEDIA = "idle_keys_media"
 
     const val STEPS = 10
     const val DEFAULT_MAX_DB = 30
+    const val DEFAULT_MAX_BOOST_DB = 12
     const val DEFAULT_HOLD_MS = 400
     val MAX_DB_RANGE = 10..60
+
+    /** 0 turns boost off. */
+    val MAX_BOOST_RANGE = 0..24
     val HOLD_RANGE = 200..1000
 
     fun get(context: Context): SharedPreferences =
@@ -23,6 +28,7 @@ object Prefs {
         ZoomController.Settings(
             steps = STEPS,
             maxAttenuationDb = p.getInt(MAX_DB, DEFAULT_MAX_DB).toFloat(),
+            maxBoostDb = p.getInt(MAX_BOOST_DB, DEFAULT_MAX_BOOST_DB).toFloat(),
             holdMs = p.getInt(HOLD_MS, DEFAULT_HOLD_MS).toLong(),
         )
 

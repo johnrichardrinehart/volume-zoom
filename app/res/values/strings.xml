@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">Volume Zoom</string>
-  <string name="a11y_summary">Hold volume down at the lowest media volume to zoom into 10 finer steps.</string>
-  <string name="a11y_description">Volume Zoom watches only the volume keys. When media is at its lowest audible step, hold volume down to zoom into 10 extra, quieter steps (software attenuation of the media output). Volume up steps back out. No other input or screen content is read.</string>
+  <string name="a11y_summary">Hold volume down at the lowest media volume for finer, quieter steps, or volume up at the highest for a boost.</string>
+  <string name="a11y_description">Volume Zoom watches only the volume keys. Hold volume down at the lowest media step to zoom into 10 quieter steps, or hold volume up at the highest step to zoom into 10 steps of boost (software gain on the media output). No other input or screen content is read.</string>
   <string name="open_accessibility">Open accessibility settings</string>
   <string name="open_app_info">Open app info</string>
   <string name="status_on">✓ Volume Zoom is on</string>
   <string name="status_off">Volume Zoom is off. In Accessibility → Volume Zoom, turn on \"Use Volume Zoom\". Leave \"Volume Zoom shortcut\" off: it only adds a floating button, and the volume keys work without it.</string>
   <string name="restricted_hint">If Android says \"App was denied access\" when you turn it on: open App info, tap ⋮ (top right), choose \"Allow restricted settings\" and turn it on again. Android only shows that option after it has blocked the switch once. It applies to apps installed from a file, not to ones from an app store such as F-Droid.</string>
   <string name="usage_title">How to use</string>
-  <string name="usage">Lower media volume to its last step, then hold volume down to zoom in (starts at 0 dB). Each down press is one fine step quieter, and up steps back out. A fresh press on the last fine step mutes. A quick press at the last step still mutes as usual.</string>
+  <string name="usage">Quieter: lower media volume to its last step, then hold volume down to zoom in (starts at 0 dB). Each down press is one fine step quieter, and up steps back out. A fresh press on the last fine step mutes.
+
+Louder: at the top media step, hold volume up to zoom into boost (starts at 0 dB). Each up press adds gain, and down steps back out. A hold that starts below the top step never boosts.
+
+Quick presses at either end behave as usual.</string>
   <string name="settings_title">Settings</string>
   <string name="max_attenuation">Deepest fine step: −%1$d dB (%2$.1f dB per step)</string>
+  <string name="max_boost">Loudest boost step: +%1$d dB (%2$.1f dB per step)</string>
+  <string name="max_boost_off">Boost: off</string>
   <string name="hold_time">Hold time to zoom in: %1$d ms</string>
   <string name="idle_keys_media">Volume keys control media when nothing is playing (Pixel default; turn off if idle keys change the ringer)</string>
   <string name="show_hud">Show fine-level indicator</string>

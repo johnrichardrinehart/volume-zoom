@@ -11,10 +11,11 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import dev.johnrinehart.volumezoom.ZoomController.Zone
 import kotlin.math.roundToInt
 
 /**
- * Transient fine-level indicator at the screen edge next to the volume keys. Uses an accessibility
+ * Transient zone indicator at the screen edge next to the volume keys. Uses an accessibility
  * overlay window, so no "display over other apps" permission is needed. It never takes touches or
  * focus.
  */
@@ -26,8 +27,8 @@ class Hud(private val context: Context) {
     private var attached = false
     private val hide = Runnable { detach() }
 
-    fun show(step: Int, settings: ZoomController.Settings, message: String? = null) {
-        view.update(step, settings, message)
+    fun show(zone: Zone, step: Int, settings: ZoomController.Settings, message: String? = null) {
+        view.update(zone, step, settings, message)
         if (!attached) {
             val d = context.resources.displayMetrics.density
             val lp =
@@ -60,7 +61,8 @@ class Hud(private val context: Context) {
     private class HudView(context: Context) : View(context) {
         private val d = resources.displayMetrics.density
         private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(225, 32, 33, 36) }
-        private val on = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(138, 180, 248) }
+        private val fine = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(138, 180, 248) }
+        private val boost = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(250, 160, 90) }
         private val off =
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 255, 255, 255) }
         private val text =
@@ -76,16 +78,24 @@ class Hud(private val context: Context) {
             }
         private val rect = RectF()
 
+        private var zone = Zone.FINE
         private var step = 0
         private var steps = Prefs.STEPS
         private var label = ""
         private var caption = ""
 
-        fun update(step: Int, s: ZoomController.Settings, message: String?) {
+        fun update(zone: Zone, step: Int, s: ZoomController.Settings, message: String?) {
+            this.zone = zone
             this.step = step
             steps = s.steps
-            label = message ?: if (step == 0) "0 dB" else "%.1f".format(s.attenuationDb(step))
-            caption = if (message != null) "" else "fine"
+            val db = s.gainDb(zone, step)
+            label = message ?: if (step == 0) "0 dB" else "%+.1f".format(db)
+            caption =
+                when {
+                    message != null -> ""
+                    zone == Zone.FINE -> "fine"
+                    else -> "boost"
+                }
             invalidate()
         }
 
@@ -98,14 +108,16 @@ class Hud(private val context: Context) {
             canvas.drawText(label, w / 2, 30 * d, text)
             canvas.drawText(caption, w / 2, 44 * d, small)
 
-            // Segments, bottom = quietest. Lit segments = remaining loudness within the floor step.
+            // Segments, bottom = quietest. FINE lights the loudness left within the floor
+            // step; BOOST lights the gain added above the ceiling.
             val top = 56 * d
             val bottom = h - 20 * d
             val gap = 4 * d
             val segH = (bottom - top - gap * (steps - 1)) / steps
             val left = w * 0.3f
             val right = w * 0.7f
-            val lit = steps - step
+            val lit = if (zone == Zone.FINE) steps - step else step
+            val on = if (zone == Zone.FINE) fine else boost
             for (i in 0 until steps) {
                 val y1 = bottom - i * (segH + gap)
                 rect.set(left, y1 - segH, right, y1)

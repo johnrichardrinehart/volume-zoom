@@ -23,12 +23,12 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
     private lateinit var prefs: SharedPreferences
     private lateinit var hud: Hud
     private lateinit var controller: ZoomController
-    private val attenuator =
-        Attenuator(
+    private val gain =
+        Gain(
             onControlLost = {
                 handler.post {
                     Log.w(TAG, "lost control of session-0 effect")
-                    if (controller.zoomed) hud.show(controller.fineStep, settings(), "lost")
+                    controller.zone?.let { hud.show(it, controller.step, settings(), "lost") }
                 }
             }
         )
@@ -87,7 +87,7 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
                 Log.d(
                     TAG,
                     "down key=$key eaten=$eaten index=${streamIndex()} mode=${audio.mode} " +
-                        "music=${audio.isMusicActive} fine=${controller.fineStep}",
+                        "music=${audio.isMusicActive} zone=${controller.zone} step=${controller.step}",
                 )
                 eaten
             }
@@ -131,6 +131,8 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
 
     override fun floorIndex() = maxOf(audio.getStreamMinVolume(AudioManager.STREAM_MUSIC), 1)
 
+    override fun ceilingIndex() = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+
     override fun mediaKeysActive(engaged: Boolean) =
         audio.mode == AudioManager.MODE_NORMAL &&
             (engaged || audio.isMusicActive || Prefs.idleKeysMedia(prefs))
@@ -146,22 +148,26 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
         audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
     }
 
-    override fun setAttenuation(db: Float?) {
-        Log.i(TAG, "attenuation=${db ?: "off"}")
+    override fun setGain(db: Float?) {
+        Log.i(TAG, "gain=${db ?: "off"}")
         if (db == null) {
-            attenuator.release()
-        } else if (!attenuator.set(db)) {
-            hud.show(controller.fineStep, settings(), "n/a")
+            gain.release()
+        } else if (!gain.set(db)) {
+            controller.zone?.let { hud.show(it, controller.step, settings(), "n/a") }
         }
     }
 
-    override fun showFine(step: Int, settings: ZoomController.Settings) {
-        Log.i(TAG, "fine step=$step/${settings.steps}")
-        if (Prefs.hud(prefs)) hud.show(step, settings)
+    override fun showZone(
+        zone: ZoomController.Zone,
+        step: Int,
+        settings: ZoomController.Settings,
+    ) {
+        Log.i(TAG, "zone=$zone step=$step/${settings.steps}")
+        if (Prefs.hud(prefs)) hud.show(zone, step, settings)
     }
 
-    override fun hideFine() {
-        Log.i(TAG, "fine off")
+    override fun hideZone() {
+        Log.i(TAG, "zone off")
         hud.detach()
     }
 
