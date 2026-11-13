@@ -6,17 +6,21 @@ volume keys.
 ## Behaviour
 
 1. Turn media down to its lowest audible step (index 1) the usual way.
-2. **Double-tap volume down** within the double-tap window (default 350 ms). The stream
-   stays at index 1 and you get one fine step of software attenuation.
+2. **Hold volume down** for 400 ms. The stream stays at index 1 and fine step 1 of
+   software attenuation kicks in. Keep holding and it goes one step deeper every
+   250 ms (10 steps, by default 3 dB each, down to −30 dB). Holding never mutes.
 3. In fine mode:
-   - volume down: one fine step quieter (10 steps, by default 3 dB each, down to −30 dB).
-     A fresh press on step 10 mutes the stream and leaves fine mode. Holding the key stops at step 10.
-   - volume up: one fine step louder. Up from step 1 leaves fine mode. Further presses
-     work as usual.
+   - volume down: one step quieter, repeating while held. A fresh press on step 10
+     mutes and leaves fine mode.
+   - volume up: one step louder, repeating while held. Reaching step 0 leaves fine mode
+     and stops at plain index 1 even if you keep holding. Further presses work as usual.
    - any other change to the media volume (system slider, switching to headphones or
      Bluetooth, screen-off key presses) leaves fine mode.
-4. A single volume-down at the floor still mutes. It is applied when the double-tap
-   window runs out, so it lands about 350 ms late.
+4. A quick press at index 1 still mutes, on release.
+
+This works with nothing playing too, because on Pixel/AOSP the idle volume keys adjust
+media. On phones where idle keys change the ringer, turn off "Volume keys control media
+when nothing is playing" in the app, and it will then only act while media plays.
 
 A small indicator at the right edge shows the current fine step. You can turn it off.
 
@@ -62,11 +66,12 @@ adb shell settings put secure accessibility_enabled 1
 ## Testing on a device
 
 `adb shell input keyevent` events skip accessibility key filters, so they can't exercise
-the zoom. Use a virtual uinput keyboard, which goes through the same path as the
+the zoom. The filters also get no auto-repeat, only the down and up edges, so the
+controller times holds and repeats itself. Use a virtual uinput keyboard, which goes through the same path as the
 hardware keys:
 
 ```sh
-python3 tools/uinput-keys.py down down | adb shell uinput -   # double-tap
+python3 tools/uinput-keys.py down:600 | adb shell uinput -   # hold 600 ms
 python3 tools/uinput-keys.py up | adb shell uinput -
 adb logcat -s VolumeZoom
 ```

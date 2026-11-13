@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -74,17 +75,22 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
         }
         return when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                val eaten = controller.onKeyDown(key, event.repeatCount > 0)
-                if (eaten) consumed += event.keyCode
-                else if (event.repeatCount == 0) consumed -= event.keyCode
+                // Filters normally see no auto-repeat; if one shows up, follow the down edge.
+                if (event.repeatCount > 0) return event.keyCode in consumed
+                val eaten = controller.onKeyDown(key)
+                if (eaten) consumed += event.keyCode else consumed -= event.keyCode
                 Log.d(
                     TAG,
-                    "key=$key repeat=${event.repeatCount} eaten=$eaten index=${streamIndex()} " +
-                        "mode=${audio.mode} music=${audio.isMusicActive} fine=${controller.fineStep}",
+                    "down key=$key eaten=$eaten index=${streamIndex()} mode=${audio.mode} " +
+                        "music=${audio.isMusicActive} fine=${controller.fineStep}",
                 )
                 eaten
             }
-            KeyEvent.ACTION_UP -> consumed.remove(event.keyCode)
+            KeyEvent.ACTION_UP -> {
+                val eaten = consumed.remove(event.keyCode)
+                if (eaten) controller.onKeyUp(key)
+                eaten
+            }
             else -> false
         }
     }
@@ -121,7 +127,8 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
     override fun floorIndex() = maxOf(audio.getStreamMinVolume(AudioManager.STREAM_MUSIC), 1)
 
     override fun mediaKeysActive(engaged: Boolean) =
-        audio.mode == AudioManager.MODE_NORMAL && (engaged || audio.isMusicActive)
+        audio.mode == AudioManager.MODE_NORMAL &&
+            (engaged || audio.isMusicActive || Prefs.idleKeysMedia(prefs))
 
     override fun settings() = Prefs.settings(prefs)
 
@@ -154,6 +161,8 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
             override fun cancel() = handler.removeCallbacks(r)
         }
     }
+
+    override fun nowMs() = SystemClock.uptimeMillis()
 
     private companion object {
         const val TAG = "VolumeZoom"

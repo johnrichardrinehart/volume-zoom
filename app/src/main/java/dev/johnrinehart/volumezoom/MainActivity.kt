@@ -64,19 +64,28 @@ class MainActivity : Activity() {
 
         val winLabel = text("")
         fun showWin(v: Int) {
-            winLabel.text = getString(R.string.double_tap_window, v)
+            winLabel.text = getString(R.string.hold_time, v)
         }
-        root.addView(slider(Prefs.WINDOW_RANGE, prefs.getInt(Prefs.WINDOW_MS, Prefs.DEFAULT_WINDOW_MS)) {
+        root.addView(slider(Prefs.HOLD_RANGE, prefs.getInt(Prefs.HOLD_MS, Prefs.DEFAULT_HOLD_MS)) {
             showWin(it)
-            prefs.edit().putInt(Prefs.WINDOW_MS, it).apply()
+            prefs.edit().putInt(Prefs.HOLD_MS, it).apply()
         })
-        showWin(prefs.getInt(Prefs.WINDOW_MS, Prefs.DEFAULT_WINDOW_MS))
+        showWin(prefs.getInt(Prefs.HOLD_MS, Prefs.DEFAULT_HOLD_MS))
 
         Switch(this).apply {
             text = getString(R.string.show_hud)
             isChecked = Prefs.hud(prefs)
             setPadding(0, pad, 0, pad)
             setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.HUD, on).apply() }
+        }.also(root::addView)
+
+        Switch(this).apply {
+            text = getString(R.string.idle_keys_media)
+            isChecked = Prefs.idleKeysMedia(prefs)
+            setPadding(0, pad, 0, pad)
+            setOnCheckedChangeListener { _, on ->
+                prefs.edit().putBoolean(Prefs.IDLE_KEYS_MEDIA, on).apply()
+            }
         }.also(root::addView)
 
         setContentView(ScrollView(this).apply { addView(root) })

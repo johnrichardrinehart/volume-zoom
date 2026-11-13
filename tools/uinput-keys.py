@@ -1,5 +1,6 @@
 """Emit a uinput JSON script: register a key device, then press keys.
-usage: vz-uinput.py SPEC...   SPEC = up|down|wait:MS ; consecutive presses 150 ms apart unless wait given
+usage: uinput-keys.py SPEC... | adb shell uinput -
+SPEC = up|down (80 ms tap) | up:MS|down:MS (held MS) | wait:MS
 """
 import json, sys
 out = [{"id": 1, "command": "register", "name": "VZ test keys", "vid": 6353, "pid": 1, "bus": "usb",
@@ -9,9 +10,10 @@ out = [{"id": 1, "command": "register", "name": "VZ test keys", "vid": 6353, "pi
 for spec in sys.argv[1:]:
     if spec.startswith("wait:"):
         out.append({"id": 1, "command": "delay", "duration": int(spec[5:])}); continue
-    k = {"up": "KEY_VOLUMEUP", "down": "KEY_VOLUMEDOWN"}[spec]
+    name, _, ms = spec.partition(":")
+    k = {"up": "KEY_VOLUMEUP", "down": "KEY_VOLUMEDOWN"}[name]
     out += [{"id": 1, "command": "inject", "events": ["EV_KEY", k, 1, "EV_SYN", "SYN_REPORT", 0]},
-            {"id": 1, "command": "delay", "duration": 50},
+            {"id": 1, "command": "delay", "duration": int(ms or 80)},
             {"id": 1, "command": "inject", "events": ["EV_KEY", k, 0, "EV_SYN", "SYN_REPORT", 0]},
             {"id": 1, "command": "delay", "duration": 100}]
 out.append({"id": 1, "command": "delay", "duration": 500})
