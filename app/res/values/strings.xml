@@ -6,7 +6,7 @@
   <string name="open_accessibility">Open accessibility settings</string>
   <string name="open_app_info">Open app info</string>
   <string name="status_on">✓ Volume Zoom is on</string>
-  <string name="status_off">Volume Zoom is off. Turn it on under Accessibility → Volume Zoom.</string>
+  <string name="status_off">Volume Zoom is off. In Accessibility → Volume Zoom, turn on \"Use Volume Zoom\". Leave \"Volume Zoom shortcut\" off: it only adds a floating button, and the volume keys work without it.</string>
   <string name="restricted_hint">If Android says \"App was denied access\" when you turn it on: open App info, tap ⋮ (top right), choose \"Allow restricted settings\" and turn it on again. Android only shows that option after it has blocked the switch once. It applies to apps installed from a file, not to ones from an app store such as F-Droid.</string>
   <string name="usage_title">How to use</string>
   <string name="usage">Lower media volume to its last step, then hold volume down to zoom in (starts at 0 dB). Each down press is one fine step quieter, and up steps back out. A fresh press on the last fine step mutes. A quick press at the last step still mutes as usual.</string>

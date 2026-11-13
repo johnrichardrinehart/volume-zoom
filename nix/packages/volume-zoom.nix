@@ -12,8 +12,8 @@
 stdenvNoCC.mkDerivation {
   pname = "volume-zoom";
   # Release tags must be v<version>; bump versionCode with every release.
-  version = "0.1.0";
-  versionCode = 1;
+  version = "0.1.1";
+  versionCode = 2;
 
   src = lib.fileset.toSource {
     root = ../..;

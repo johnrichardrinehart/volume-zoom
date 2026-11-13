@@ -53,9 +53,14 @@ against the `.sha256` file. Every release is signed with the same key:
 SHA-256 8A:DD:AC:26:87:05:59:60:6D:8E:F9:ED:D5:8D:86:89:DF:18:E1:AE:69:B3:48:BF:77:95:C3:5E:76:B2:2C:8C
 ```
 
-Android 13+ blocks accessibility services for sideloaded apps until you open
-**App info → ⋮ → Allow restricted settings**. Then enable _Volume Zoom_ under
-**Settings → Accessibility**.
+Then, in **Settings → Accessibility → Volume Zoom**, turn on **Use Volume Zoom**. Leave
+**Volume Zoom shortcut** off: it only adds a floating accessibility button, and the volume
+keys work without it.
+
+If you installed the APK from a file, Android 13+ answers with "App was denied access".
+After that first refusal, **App info → ⋮ → Allow restricted settings** becomes available.
+Allow it, then turn the service on again. Installs from an app store such as F-Droid are
+not restricted.
 
 ## Build
 
