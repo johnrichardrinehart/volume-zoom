@@ -43,24 +43,41 @@ A small indicator at the right edge shows the current fine step. You can turn it
 - Another app holding a higher-priority global effect can take control. The indicator
   then shows `lost`.
 
-## Build and install
+## Install
 
-```sh
-nix develop -c gradle testDebugUnitTest assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+Download `volume-zoom-vX.Y.Z.apk` from
+[Releases](https://github.com/johnrichardrinehart/volume-zoom/releases) and check it
+against the `.sha256` file. Every release is signed with the same key:
+
+```
+SHA-256 8A:DD:AC:26:87:05:59:60:6D:8E:F9:ED:D5:8D:86:89:DF:18:E1:AE:69:B3:48:BF:77:95:C3:5E:76:B2:2C:8C
 ```
 
-On Android 13+, sideloaded apps cannot enable accessibility services until you open
-**App info → ⋮ → Allow restricted settings**. After that, enable *Volume Zoom* under
-**Settings → Accessibility**. Over adb you can do the same with:
+Android 13+ blocks accessibility services for sideloaded apps until you open
+**App info → ⋮ → Allow restricted settings**. Then enable _Volume Zoom_ under
+**Settings → Accessibility**.
+
+## Build
+
+The build uses Nix only: aapt2, kotlinc and d8 run directly, with no Gradle.
 
 ```sh
-adb shell settings put secure enabled_accessibility_services \
-  dev.johnrinehart.volumezoom/.ZoomService
-adb shell settings put secure accessibility_enabled 1
+nix build            # result/volume-zoom-unsigned.apk
+nix flake check      # APK, state-machine tests, formatting
+nix run .#install    # sign with the release key, adb install, enable the service
 ```
 
-(The first command replaces any other enabled services. Append with `:` if you use any.)
+`nix run .#sign -- IN.apk OUT.apk` signs with `VOLUME_ZOOM_KEYSTORE` and
+`VOLUME_ZOOM_KEYSTORE_PASSWORD`, or with `~/.local/share/volume-zoom/release.{p12,pass}`
+if those aren't set. The state machine (`core/`) is plain Kotlin with no Android
+dependencies. Its tests run on the JVM.
+
+## Releasing
+
+Bump `version` and `versionCode` in `nix/packages/volume-zoom.nix`, then push a tag
+`v<version>`. The release workflow runs the checks, checks the tag against the version,
+signs the APK with the keystore from the `VOLUME_ZOOM_KEYSTORE_BASE64` and
+`VOLUME_ZOOM_KEYSTORE_PASSWORD` secrets, and publishes the APK with its SHA-256.
 
 ## Testing on a device
 
@@ -83,19 +100,23 @@ reports the level of a 1 kHz test tone, taking the median over 250 ms windows.
 1 kHz tone at −4 dBFS, phone 2–5 cm from the laptop mic. "Below floor" is
 noise-corrected; steps 9–10 had only 3–8 dB SNR.
 
-| fine step | expected | measured below floor |
-|---|---|---|
-| 0 (floor, idx 1 = −51.2 dBFS at the mic) | 0 | 0 |
-| 1 | −3 | −2.5 |
-| 2 | −6 | −5.3 |
-| 3 | −9 | −8.3 |
-| 4 | −12 | −11.2 |
-| 5 | −15 | −14.6 |
-| 6 | −18 | −17.9 |
-| 7 | −21 | −20.5 |
-| 8 | −24 | −23.8 |
-| 9 | −27 | −25.9 |
-| 10 | −30 | −30.5 |
-| mute (down on step 10) | — | at the noise floor |
+| fine step                                | expected | measured below floor |
+| ---------------------------------------- | -------- | -------------------- |
+| 0 (floor, idx 1 = −51.2 dBFS at the mic) | 0        | 0                    |
+| 1                                        | −3       | −2.5                 |
+| 2                                        | −6       | −5.3                 |
+| 3                                        | −9       | −8.3                 |
+| 4                                        | −12      | −11.2                |
+| 5                                        | −15      | −14.6                |
+| 6                                        | −18      | −17.9                |
+| 7                                        | −21      | −20.5                |
+| 8                                        | −24      | −23.8                |
+| 9                                        | −27      | −25.9                |
+| 10                                       | −30      | −30.5                |
+| mute (down on step 10)                   | —        | at the noise floor   |
 
 For comparison, index 2 is only 3.3 dB louder than index 1 on this phone.
+
+## License
+
+[0BSD](LICENSE)

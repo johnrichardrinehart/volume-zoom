@@ -1,44 +1,74 @@
 {
-  description = "Volume Zoom: sub-floor media attenuation driven by the hardware volume keys";
+  description = "Volume Zoom: quieter-than-minimum media volume, driven by the hardware volume keys";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+  };
 
   outputs =
-    { nixpkgs, ... }:
-    let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs {
-        inherit system;
-        config = {
-          allowUnfree = true;
-          android_sdk.accept_license = true;
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      # Google publishes the Android SDK build tools for x86_64 Linux only.
+      systems = [ "x86_64-linux" ];
+
+      imports = [ inputs.flake-parts.flakeModules.partitions ];
+
+      perSystem =
+        {
+          android,
+          config,
+          pkgs,
+          system,
+          ...
+        }:
+        {
+          _module.args = {
+            pkgs = import ./nix/nixpkgs.nix {
+              inherit (inputs) nixpkgs;
+              inherit system;
+            };
+            android = import ./nix/android.nix { inherit pkgs; };
+          };
+
+          packages = {
+            default = config.packages.volume-zoom;
+            volume-zoom = pkgs.callPackage ./nix/packages/volume-zoom.nix { inherit android; };
+            sign = pkgs.callPackage ./nix/packages/sign.nix { inherit android; };
+            install = pkgs.callPackage ./nix/packages/install.nix {
+              inherit android;
+              inherit (config.packages) volume-zoom sign;
+            };
+          };
+
+          apps = {
+            sign = {
+              type = "app";
+              program = pkgs.lib.getExe config.packages.sign;
+              meta.description = "Sign the Volume Zoom APK with a release keystore";
+            };
+            install = {
+              type = "app";
+              program = pkgs.lib.getExe config.packages.install;
+              meta.description = "Sign Volume Zoom, install it over adb and enable its service";
+            };
+          };
         };
-      };
-      buildToolsVersion = "36.0.0";
-      android = pkgs.androidenv.composeAndroidPackages {
-        platformVersions = [ "36" ];
-        buildToolsVersions = [ buildToolsVersion ];
-        includeEmulator = false;
-        includeNDK = false;
-      };
-      sdk = android.androidsdk;
-      sdkRoot = "${sdk}/libexec/android-sdk";
-    in
-    {
-      devShells.${system}.default = pkgs.mkShell {
-        packages = [
-          sdk
-          pkgs.jdk17
-          pkgs.gradle
-          pkgs.android-tools
-        ];
-        ANDROID_HOME = sdkRoot;
-        ANDROID_SDK_ROOT = sdkRoot;
-        JAVA_HOME = pkgs.jdk17.home;
-        # AGP downloads a dynamically linked aapt2 from Maven that cannot run on NixOS.
-        GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/${buildToolsVersion}/aapt2";
+
+      # Development tools do not enter the input closure of package consumers.
+      partitionedAttrs = {
+        checks = "dev";
+        devShells = "dev";
+        formatter = "dev";
       };
 
-      formatter.${system} = pkgs.nixfmt-rfc-style;
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = import ./nix/flake/dev-partition.nix;
+      };
     };
 }

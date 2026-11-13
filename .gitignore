@@ -1,7 +1,4 @@
-.gradle/
-build/
-app/build/
-local.properties
 .direnv/
-result*
-*.apk
+.pre-commit-config.yaml
+result
+result-*

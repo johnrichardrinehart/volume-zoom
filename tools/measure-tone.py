@@ -1,7 +1,12 @@
-"""Record from the laptop's raw mic and report a test tone's level in dBFS.
+"""Record from a PipeWire source and report a test tone's level in dBFS.
 
-usage: vz-meas.py SECONDS LABEL [FREQ]
+usage: measure-tone.py SECONDS LABEL [FREQ]
+
+Set MIC to a PipeWire node name to pick the source. Use the raw ALSA input, not a
+noise-suppression filter, which removes steady tones.
 """
+
+import os
 import subprocess
 import sys
 
@@ -12,9 +17,9 @@ label = sys.argv[2]
 freq = float(sys.argv[3]) if len(sys.argv) > 3 else 1000.0
 rate = 48000
 raw = subprocess.run(
-    ["timeout", str(secs + 0.6), "pw-record", "--target",
-     "alsa_input.pci-0000_00_1f.3.analog-stereo", "--rate", str(rate), "--channels", "1",
-     "--format", "f32", "-"],
+    ["timeout", str(secs + 0.6), "pw-record"]
+    + (["--target", os.environ["MIC"]] if os.environ.get("MIC") else [])
+    + ["--rate", str(rate), "--channels", "1", "--format", "f32", "-"],
     capture_output=True,
 ).stdout
 x = np.frombuffer(raw[: len(raw) // 4 * 4], dtype=np.float32)[rate // 3 :]
@@ -34,4 +39,6 @@ for s in segs:
 # Median over segments rejects transient room noise (speech, typing).
 tone_db = 10 * np.log10(np.median(tones) / norm)
 noise_db = 10 * np.log10(np.median(noises) / norm)
-print(f"{label:>8} tone {tone_db:7.2f} dBFS  noise {noise_db:7.2f}  snr {tone_db - noise_db:5.1f}")
+print(
+    f"{label:>8} tone {tone_db:7.2f} dBFS  noise {noise_db:7.2f}  snr {tone_db - noise_db:5.1f}"
+)

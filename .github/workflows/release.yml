@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: DeterminateSystems/determinate-nix-action@2a0be2498974c2b6327e19780488744384637d88 # v3.21.7
+
+      - run: nix flake check --print-build-logs
+
+      - name: Check the tag against the package version
+        run: |
+          version="$(nix eval --raw .#volume-zoom.version)"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+            exit 1
+          fi
+
+      - name: Build and sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.VOLUME_ZOOM_KEYSTORE_BASE64 }}
+          VOLUME_ZOOM_KEYSTORE_PASSWORD: ${{ secrets.VOLUME_ZOOM_KEYSTORE_PASSWORD }}
+        run: |
+          export VOLUME_ZOOM_KEYSTORE="$RUNNER_TEMP/release.p12"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$VOLUME_ZOOM_KEYSTORE"
+          trap 'rm -f "$VOLUME_ZOOM_KEYSTORE"' EXIT
+          unsigned="$(nix build --no-link --print-out-paths .#volume-zoom)/volume-zoom-unsigned.apk"
+          apk="volume-zoom-$GITHUB_REF_NAME.apk"
+          nix run .#sign -- "$unsigned" "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Volume Zoom $GITHUB_REF_NAME" \
+            --generate-notes \
+            "volume-zoom-$GITHUB_REF_NAME.apk" \
+            "volume-zoom-$GITHUB_REF_NAME.apk.sha256"
