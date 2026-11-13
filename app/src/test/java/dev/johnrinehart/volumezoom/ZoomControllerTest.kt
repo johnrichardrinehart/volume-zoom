@@ -36,6 +36,10 @@ class ZoomControllerTest {
         override fun showFine(step: Int, settings: ZoomController.Settings) {
             shown += step
         }
+        var hidden = 0
+        override fun hideFine() {
+            hidden++
+        }
         override fun nowMs() = now
         override fun schedule(delayMs: Long, action: () -> Unit): ZoomController.Cancellable {
             val entry = (now + delayMs) to action
@@ -83,8 +87,10 @@ class ZoomControllerTest {
 
     private fun zoomIn() {
         host.index = 1
-        assertTrue(press(Key.DOWN, holdMs = 450)) // 400 ms hold -> step 1, no repeat yet
-        assertEquals(1, c.fineStep)
+        assertTrue(press(Key.DOWN, holdMs = 2000)) // long hold still only enters
+        assertTrue(c.zoomed)
+        assertEquals(0, c.fineStep)
+        assertNull(host.gain)
     }
 
     @Test
@@ -103,91 +109,80 @@ class ZoomControllerTest {
         assertEquals(1, host.index) // nothing yet while held
         c.onKeyUp(Key.DOWN)
         assertEquals(0, host.index)
-        assertEquals(0, c.fineStep)
+        assertFalse(c.zoomed)
         assertNull(host.gain)
         assertEquals(0, host.pendingTimers)
     }
 
     @Test
-    fun walkingDownToFloorThenHoldZooms() {
+    fun holdAtFloorEntersAtZeroDb() {
         host.index = 2
         assertFalse(press(Key.DOWN)) // 2 -> 1 by the system
-        assertEquals(1, host.index)
         assertTrue(c.onKeyDown(Key.DOWN))
         host.advance(399)
-        assertEquals(0, c.fineStep)
+        assertFalse(c.zoomed)
         host.advance(1)
-        assertEquals(1, c.fineStep)
-        assertEquals(-3f, host.gain!!, 1e-6f)
-        assertEquals(1, host.index)
+        assertTrue(c.zoomed)
+        assertEquals(0, c.fineStep)
+        assertEquals(listOf(0), host.shown)
+        host.advance(5000)
+        assertEquals(0, c.fineStep) // the entry hold does not step
         c.onKeyUp(Key.DOWN)
         assertEquals(1, host.index) // release after zoom does not mute
-        assertEquals(1, c.fineStep)
+        assertNull(host.gain)
     }
 
     @Test
-    fun holdingKeepsSteppingAndNeverMutes() {
-        host.index = 1
-        c.onKeyDown(Key.DOWN)
-        host.advance(400) // step 1
-        host.advance(250 * 4L) // steps 2..5
-        assertEquals(5, c.fineStep)
-        host.advance(250 * 20L)
+    fun downPressesStepAndHoldRepeats() {
+        zoomIn()
+        assertTrue(press(Key.DOWN))
+        assertEquals(1, c.fineStep)
+        assertEquals(-3f, host.gain!!, 1e-6f)
+        assertTrue(press(Key.DOWN, holdMs = 400 + 250 + 10)) // +1, repeat at 400, +1 at 650
+        assertEquals(4, c.fineStep)
+        assertTrue(press(Key.DOWN, holdMs = 10_000)) // holding stops at the last step
         assertEquals(10, c.fineStep)
         assertEquals(-30f, host.gain!!, 1e-6f)
-        assertEquals(1, host.index)
-        c.onKeyUp(Key.DOWN)
-        assertEquals(10, c.fineStep)
         assertEquals(1, host.index)
     }
 
     @Test
     fun freshPressOnLastStepMutes() {
         zoomIn()
-        repeat(9) { assertTrue(press(Key.DOWN)) }
+        repeat(10) { assertTrue(press(Key.DOWN)) }
         assertEquals(10, c.fineStep)
         assertTrue(press(Key.DOWN))
-        assertEquals(0, c.fineStep)
+        assertFalse(c.zoomed)
         assertEquals(0, host.index)
         assertNull(host.gain)
     }
 
     @Test
-    fun fineDownPressesStepOnceUnlessHeld() {
+    fun upStepsBackThenZoomsOut() {
         zoomIn()
-        assertTrue(press(Key.DOWN, holdMs = 300))
-        assertEquals(2, c.fineStep)
-        assertTrue(press(Key.DOWN, holdMs = 400 + 250 + 10)) // +1, repeat at 400, +1 at 650
-        assertEquals(5, c.fineStep)
-    }
-
-    @Test
-    fun upStepsBackOutOfFineMode() {
-        zoomIn()
-        press(Key.DOWN)
-        press(Key.DOWN)
+        repeat(3) { press(Key.DOWN) }
         assertEquals(3, c.fineStep)
         assertTrue(press(Key.UP))
         assertTrue(press(Key.UP))
-        assertEquals(1, c.fineStep)
         assertTrue(press(Key.UP))
         assertEquals(0, c.fineStep)
+        assertTrue(c.zoomed)
         assertNull(host.gain)
-        assertEquals(1, host.index)
-        assertEquals(0, host.shown.last())
-        assertFalse(press(Key.UP)) // ordinary again
+        // Up at 0 dB zooms out and raises the system volume as usual.
+        assertFalse(press(Key.UP))
+        assertFalse(c.zoomed)
         assertEquals(2, host.index)
+        assertEquals(1, host.hidden)
     }
 
     @Test
-    fun holdingUpStopsAtFloorVolume() {
+    fun holdingUpStopsAtZeroDb() {
         zoomIn()
-        repeat(4) { press(Key.DOWN) }
-        assertEquals(5, c.fineStep)
+        repeat(5) { press(Key.DOWN) }
         assertTrue(press(Key.UP, holdMs = 5000))
         assertEquals(0, c.fineStep)
-        assertEquals(1, host.index) // did not continue into system volume
-        assertNull(host.gain)
+        assertTrue(c.zoomed)
+        assertEquals(1, host.index)
     }
 
     @Test
@@ -196,7 +191,7 @@ class ZoomControllerTest {
         press(Key.DOWN)
         host.index = 4
         c.onStreamIndexChanged(4)
-        assertEquals(0, c.fineStep)
+        assertFalse(c.zoomed)
         assertNull(host.gain)
     }
 
@@ -205,7 +200,7 @@ class ZoomControllerTest {
         zoomIn()
         host.media = false
         assertTrue(press(Key.DOWN))
-        assertEquals(2, c.fineStep)
+        assertEquals(1, c.fineStep)
     }
 
     @Test
@@ -230,12 +225,13 @@ class ZoomControllerTest {
         host.advance(5)
         assertTrue(c.onKeyDown(Key.DOWN)) // bounce: consumed, no step
         c.onKeyUp(Key.DOWN)
-        assertEquals(2, c.fineStep)
+        assertEquals(1, c.fineStep)
     }
 
     @Test
     fun settingsChangeReappliesGain() {
         zoomIn()
+        press(Key.DOWN)
         press(Key.DOWN)
         host.settings = ZoomController.Settings(maxAttenuationDb = 50f)
         c.onSettingsChanged()

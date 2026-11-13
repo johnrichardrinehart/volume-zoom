@@ -6,15 +6,14 @@ package dev.johnrinehart.volumezoom
  * Normal mode: key presses pass through to the system untouched, except a volume-down
  * press while the media stream sits at its lowest audible index (the "floor"):
  *  - released before [Settings.holdMs]: replayed as an ordinary volume-down (mute);
- *  - held for [Settings.holdMs]: zoom in. The stream stays at the floor, one fine step of
- *    software attenuation is applied, and further steps follow every
- *    [Settings.repeatMs] while the key stays down.
+ *  - held for [Settings.holdMs]: zoom in at fine step 0 (0 dB, i.e. plain floor
+ *    volume). The hold only switches modes; it does not step further.
  *
- * Zoomed (fine) mode, step 1..[Settings.steps]:
+ * Zoomed (fine) mode, step 0..[Settings.steps], step k = k * maxAttenuation / steps dB down:
  *  - down: one step quieter, repeating while held. A fresh press on the last step mutes
  *    and leaves fine mode; holding never mutes;
- *  - up: one step louder, repeating while held. Reaching step 0 leaves fine mode (back
- *    to plain floor volume) and stops there even if the key is still held;
+ *  - up: one step louder, repeating while held, stopping at step 0. A fresh up press at
+ *    step 0 zooms out: fine mode ends and the press raises the system volume as usual;
  *  - any external change of the stream index away from the floor leaves fine mode.
  *
  * Accessibility key filters see only the physical down/up edges (no auto-repeat), so
@@ -55,11 +54,14 @@ class ZoomController(private val host: Host) {
         /** Ordinary one-step adjustment of the media stream, with system UI. */
         fun adjustStream(key: Key)
 
-        /** Apply software gain in dB (<= 0); null removes the effect entirely. */
+        /** Apply software gain in dB (< 0); null removes the effect entirely. */
         fun setAttenuation(db: Float?)
 
-        /** Show fine-mode feedback; step 0 means fine mode just ended. */
+        /** Show fine-mode feedback for [step] (0 = zoomed in, no attenuation yet). */
         fun showFine(step: Int, settings: Settings)
+
+        /** Fine mode ended. */
+        fun hideFine()
 
         fun schedule(delayMs: Long, action: () -> Unit): Cancellable
 
@@ -67,6 +69,8 @@ class ZoomController(private val host: Host) {
         fun nowMs(): Long
     }
 
+    var zoomed: Boolean = false
+        private set
     var fineStep: Int = 0
         private set
 
@@ -78,7 +82,7 @@ class ZoomController(private val host: Host) {
     private var timer: Cancellable? = null
     private val lastRelease = mutableMapOf<Key, Long>()
 
-    val isEngaged: Boolean get() = fineStep > 0 || floorPending
+    val isEngaged: Boolean get() = zoomed || floorPending
 
     /**
      * Handle a key-down edge. Returns true if consumed; the caller must then also
@@ -89,46 +93,42 @@ class ZoomController(private val host: Host) {
         if (!host.mediaKeysActive(isEngaged)) return false
         // Contact bounce: a press right after a release of the same key is not a new press.
         val bounced = lastRelease[key]?.let { host.nowMs() - it < BOUNCE_MS } ?: false
-        if (bounced && (fineStep > 0 || floorPending)) return true
+        if (bounced && isEngaged) return true
 
         val s = host.settings()
-        return when (key) {
-            Key.DOWN -> when {
-                fineStep > 0 -> {
+        if (zoomed) {
+            when (key) {
+                Key.DOWN ->
                     if (fineStep < s.steps) {
                         setStep(fineStep + 1, s)
                         hold(key, s)
                     } else {
-                        // Past the last fine step: silence, like going below the floor.
-                        muteFromFine(s)
+                        muteFromFine() // past the last fine step: silence
                     }
-                    true
-                }
-                host.streamIndex() == host.floorIndex() -> {
-                    held = key
-                    floorPending = true
-                    timer = host.schedule(s.holdMs) {
-                        floorPending = false
-                        val now = host.settings()
-                        setStep(1, now)
-                        timer = host.schedule(now.repeatMs) { repeat(key) }
+                Key.UP ->
+                    if (fineStep > 0) {
+                        setStep(fineStep - 1, s)
+                        hold(key, s)
+                    } else {
+                        exitFine()
+                        return false // zoom out: the system raises the volume
                     }
-                    true
-                }
-                else -> false
             }
-            Key.UP -> {
-                if (fineStep == 0) return false
-                if (fineStep == 1) {
-                    exitFine(s)
-                    held = key // swallow the rest of this press
-                } else {
-                    setStep(fineStep - 1, s)
-                    hold(key, s)
-                }
-                true
-            }
+            return true
         }
+
+        if (key == Key.DOWN && host.streamIndex() == host.floorIndex()) {
+            held = key
+            floorPending = true
+            timer = host.schedule(s.holdMs) {
+                timer = null
+                floorPending = false
+                zoomed = true
+                setStep(0, host.settings())
+            }
+            return true
+        }
+        return false
     }
 
     /** Handle a key-up edge for a key whose down edge we consumed. */
@@ -136,8 +136,7 @@ class ZoomController(private val host: Host) {
         lastRelease[key] = host.nowMs()
         if (held != key) return
         held = null
-        timer?.cancel()
-        timer = null
+        stopTimer()
         if (floorPending) {
             // Short press at the floor: behave like a normal volume-down.
             floorPending = false
@@ -147,15 +146,12 @@ class ZoomController(private val host: Host) {
 
     /** Media stream index changed (from any source). */
     fun onStreamIndexChanged(index: Int) {
-        if (fineStep > 0 && index != host.floorIndex()) {
-            stopTimer()
-            exitFine(host.settings())
-        }
+        if (zoomed && index != host.floorIndex()) exitFine()
     }
 
     /** Settings changed while zoomed: re-apply the current step. */
     fun onSettingsChanged() {
-        if (fineStep > 0) {
+        if (zoomed) {
             val s = host.settings()
             setStep(fineStep.coerceAtMost(s.steps), s)
         }
@@ -166,29 +162,25 @@ class ZoomController(private val host: Host) {
         stopTimer()
         held = null
         floorPending = false
+        zoomed = false
         fineStep = 0
         host.setAttenuation(null)
     }
 
     private fun hold(key: Key, s: Settings) {
         held = key
-        timer?.cancel()
+        stopTimer()
         timer = host.schedule(s.holdMs) { repeat(key) }
     }
 
-    /** Auto-repeat while [key] stays held. */
+    /** Auto-repeat while [key] stays held; stops at either end of the fine range. */
     private fun repeat(key: Key) {
-        if (held != key || fineStep == 0) return
+        timer = null
+        if (held != key || !zoomed) return
         val s = host.settings()
         val next = if (key == Key.DOWN) fineStep + 1 else fineStep - 1
-        when {
-            next > s.steps -> return // holding never mutes
-            next == 0 -> {
-                exitFine(s)
-                return
-            }
-            else -> if (next != fineStep) setStep(next, s)
-        }
+        if (next < 0 || next > s.steps) return
+        setStep(next, s)
         timer = host.schedule(s.repeatMs) { repeat(key) }
     }
 
@@ -199,23 +191,22 @@ class ZoomController(private val host: Host) {
 
     private fun setStep(step: Int, s: Settings) {
         fineStep = step
-        host.setAttenuation(s.attenuationDb(step))
+        host.setAttenuation(if (step == 0) null else s.attenuationDb(step))
         host.showFine(step, s)
     }
 
-    private fun muteFromFine(s: Settings) {
-        stopTimer()
-        fineStep = 0
-        held = Key.DOWN
+    private fun muteFromFine() {
         host.adjustStream(Key.DOWN)
-        host.setAttenuation(null)
-        host.showFine(0, s)
+        exitFine()
+        held = Key.DOWN // swallow the rest of this press
     }
 
-    private fun exitFine(s: Settings) {
+    private fun exitFine() {
+        stopTimer()
+        zoomed = false
         fineStep = 0
         host.setAttenuation(null)
-        host.showFine(0, s)
+        host.hideFine()
     }
 
     companion object {

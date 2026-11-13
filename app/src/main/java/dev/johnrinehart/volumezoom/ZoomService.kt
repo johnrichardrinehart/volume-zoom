@@ -28,7 +28,7 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
     private val attenuator = Attenuator(onControlLost = {
         handler.post {
             Log.w(TAG, "lost control of session-0 effect")
-            if (controller.fineStep > 0) hud.show(controller.fineStep, settings(), "lost")
+            if (controller.zoomed) hud.show(controller.fineStep, settings(), "lost")
         }
     })
 
@@ -152,6 +152,11 @@ class ZoomService : AccessibilityService(), ZoomController.Host {
     override fun showFine(step: Int, settings: ZoomController.Settings) {
         Log.i(TAG, "fine step=$step/${settings.steps}")
         if (Prefs.hud(prefs)) hud.show(step, settings)
+    }
+
+    override fun hideFine() {
+        Log.i(TAG, "fine off")
+        hud.detach()
     }
 
     override fun schedule(delayMs: Long, action: () -> Unit): ZoomController.Cancellable {

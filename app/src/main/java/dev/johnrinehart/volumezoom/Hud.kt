@@ -46,7 +46,7 @@ class Hud(private val context: Context) {
             runCatching { wm.addView(view, lp) }.onSuccess { attached = true }
         }
         handler.removeCallbacks(hide)
-        handler.postDelayed(hide, if (step == 0 || message != null) 1000 else 1800)
+        handler.postDelayed(hide, if (message != null) 1000 else 1800)
     }
 
     fun detach() {
@@ -80,7 +80,7 @@ class Hud(private val context: Context) {
             this.step = step
             steps = s.steps
             label = message ?: if (step == 0) "0 dB" else "%.1f".format(s.attenuationDb(step))
-            caption = if (message != null) "" else if (step == 0) "floor" else "fine"
+            caption = if (message != null) "" else "fine"
             invalidate()
         }
 

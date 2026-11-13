@@ -6,14 +6,13 @@ volume keys.
 ## Behaviour
 
 1. Turn media down to its lowest audible step (index 1) the usual way.
-2. **Hold volume down** for 400 ms. The stream stays at index 1 and fine step 1 of
-   software attenuation kicks in. Keep holding and it goes one step deeper every
-   250 ms (10 steps, by default 3 dB each, down to −30 dB). Holding never mutes.
-3. In fine mode:
-   - volume down: one step quieter, repeating while held. A fresh press on step 10
-     mutes and leaves fine mode.
-   - volume up: one step louder, repeating while held. Reaching step 0 leaves fine mode
-     and stops at plain index 1 even if you keep holding. Further presses work as usual.
+2. **Hold volume down** for 400 ms to zoom in. You land on fine step 0, which is plain
+   index-1 volume (0 dB). The hold only switches modes and does not step any further.
+3. In fine mode (10 steps below 0 dB, by default 3 dB each, down to −30 dB):
+   - volume down: one step quieter, repeating while held. Holding stops at step 10.
+     A fresh press on step 10 mutes and leaves fine mode.
+   - volume up: one step louder, repeating while held, stopping at 0 dB. A fresh up
+     press at 0 dB zooms out and raises the system volume as usual.
    - any other change to the media volume (system slider, switching to headphones or
      Bluetooth, screen-off key presses) leaves fine mode.
 4. A quick press at index 1 still mutes, on release.
